@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.2)
+cmake_minimum_required(VERSION 4.0)
 project(rikrak CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -9,13 +9,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(RAYLIB_VERSION 6.0)
 find_package(raylib ${RAYLIB_VERSION} QUIET)
 if (NOT raylib_FOUND)
-    include(FetchContent)
-    FetchContent_Declare(
+  include(FetchContent)
+  FetchContent_Declare(
             raylib
             DOWNLOAD_EXTRACT_TIMESTAMP OFF
             URL https://github.com/raysan5/raylib/archive/refs/tags/${RAYLIB_VERSION}.tar.gz
     )
-    FetchContent_MakeAvailable(raylib)
+  FetchContent_MakeAvailable(raylib)
 endif ()
 
 
