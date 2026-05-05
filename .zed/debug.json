@@ -1,0 +1,24 @@
+[
+  {
+    "label": "Debug C++ (gdb)",
+    "mode": "debug",
+    "adapter": "CodeLLDB",
+    "request": "launch",
+    "program": "$ZED_WORKTREE_ROOT/build/rikrak", // Adjust to your executable
+    "args": [],
+    "stopAtEntry": false,
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "environment": [],
+    "externalConsole": false,
+    "MIMode": "gdb",
+    "miDebuggerPath": "/usr/bin/gdb", // Adjust path if needed
+    "preLaunchTask": "build",
+    "setupCommands": [
+      {
+        "description": "Enable pretty-printing for gdb",
+        "text": "-enable-pretty-printing",
+        "ignoreFailures": true,
+      },
+    ],
+  },
+]
