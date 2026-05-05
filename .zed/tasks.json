@@ -21,6 +21,7 @@
     "label": "CMake: build + run (Debug)",
     "command": "cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j && ./build/rikrak",
     "use_new_terminal": false,
+    "allow_concurrent_runs": true,
     "shell": { "with_arguments": { "program": "/bin/sh", "args": ["-lc"] } },
   },
 ]

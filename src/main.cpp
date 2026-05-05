@@ -1,8 +1,10 @@
-#include <cmath>
 #include <map>
+
 
 #include "raylib.h"
 
+constexpr int windowWidth = 800;
+constexpr int windowHeight = 600;
 
 enum Shift
 {
@@ -11,7 +13,12 @@ enum Shift
     None,
 };
 
-Shift currentTurn = FirstPlayer;
+enum GameState
+{
+    Menu,
+    Playing
+};
+
 
 struct PositionData {
     Rectangle rect;
@@ -19,80 +26,126 @@ struct PositionData {
     bool claimed;
 };
 
+struct MenuButton {
+    const char* message;
+    Rectangle rect;
+    int gameWidth;
+};
+
+// Todo: remove global
+Shift currentTurn = FirstPlayer;
 std::pmr::map<std::pair<int, int>, PositionData> positions;
 Shift winner = None;
-
 void setup(int gameWidth, int cubeWidth, int cubeHeight);
 bool isInside(int gameWidth);
 bool checkWin(int gameWidth, Shift currentPlayer);
 bool isFull(int gameWidth);
+void game(int gameWidth, int cubeWidth, int cubeHeight, GameState &state);
+void menu(int &gWidth, GameState &state, int &cubeWidth, int &cubeHeight);
 
 bool hasWinner();
 
 int main()
 {
-    constexpr int windowWidth = 800;
-    constexpr int windowHeight = 600;
-    constexpr int gameWidth = 3;
+    GameState state = Menu;
+    int gameWidth = 2;
+
+    int cubeWidth = windowWidth / gameWidth;
+    int cubeHeight = windowHeight / gameWidth;
+    
+    SetConfigFlags(FLAG_WINDOW_HIGHDPI);
 
     InitWindow(windowWidth, windowHeight, "RikRakRoe");
-    const int cubeWidth = windowWidth / gameWidth;
-    const int cubeHeight = windowHeight / gameWidth;
-    setup(gameWidth, cubeWidth, cubeHeight);
-    Image image = LoadImage("tic-tac-toe.png");
-    SetConfigFlags(FLAG_WINDOW_HIGHDPI);
+    
+    Image image = LoadImage("tic-tac-toe.png"); //random image from pixabay
     SetWindowIcon(image);
     UnloadImage(image);
+    
     while (!WindowShouldClose())
     {
         BeginDrawing();
         ClearBackground(GRAY);
-        for (auto& [key, value] : positions)
-        {
-            Color color = GRAY;
-            if (value.claimed)
-            {
-                color = value.shift == FirstPlayer ? BLACK : WHITE;
-            } else
-            {
-                if (CheckCollisionPointRec(GetMousePosition(), value.rect))
-                {
-                    color = currentTurn == FirstPlayer ? DARKGRAY : LIGHTGRAY;
-                }
-            }
-            DrawRectangleV(Vector2(value.rect.x, value.rect.y), Vector2(value.rect.width, value.rect.height), color);
+        if (state == Playing) {
+            game(gameWidth, cubeWidth, cubeHeight, state);
+        } else {
+            menu(gameWidth, state, cubeWidth, cubeHeight);
         }
-
-        Color winColor = { 0, 255, 136, 255 };
-        if (winner == SecondPlayer)
-        {
-            DrawText("WHITE Won! Press R to Restart", 36, 40, 38, winColor);
-        } else if (winner == FirstPlayer)
-        {
-            DrawText("BLACK Won! Press R to Restart", 36, 40, 38, winColor);
-        }
-
-        bool full = isFull(gameWidth);
-        if (full) {
-            DrawText("Press R to Restart", 36, 40, 38, winColor);
-        }
-
         EndDrawing();
-        if (IsKeyPressed(KEY_R))
-        {
-            setup(gameWidth, cubeWidth, cubeHeight);
-        }
-
-        if (!hasWinner()) {
-            isInside(gameWidth);
-        }
-
-
     }
 
     return 0;
 
 }
+
+void menu(int &gWidth, GameState &state, int &cubeWidth, int &cubeHeight) {
+    float width = windowWidth / 3;
+
+    float centerWidth = (windowWidth / 2) - width / 2;
+    float height = windowHeight / 7;
+    MenuButton buttons[3] = {{"3x3", {centerWidth, 50, width, height}, 3}, {"4x4", {centerWidth, 200, width, height}, 4}, {"5x5", {centerWidth, 350, width, height}, 5}};
+
+    Vector2 mousePosition = GetMousePosition();
+
+    for (MenuButton b : buttons) {
+        bool inside = CheckCollisionPointRec(mousePosition, b.rect);
+        DrawRectangleV(Vector2(b.rect.x, b.rect.y), Vector2(b.rect.width, b.rect.height), inside ? RED : RAYWHITE);
+        DrawText(b.message, b.rect.x + b.rect.width / 3, b.rect.y + b.rect.height / 3, 40, BLUE);
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && inside) {
+            gWidth = b.gameWidth;
+            state = Playing;
+            break;
+        }
+    }
+    if (state == Playing) {
+        cubeWidth = windowWidth / gWidth;
+        cubeHeight = windowHeight / gWidth;
+        setup(gWidth, cubeWidth, cubeHeight);
+    }
+
+}
+
+void game(const int gameWidth, const int cubeWidth, const int cubeHeight, GameState &state) {
+    for (auto& [key, value] : positions)
+    {
+        Color color = GRAY;
+        if (value.claimed)
+        {
+            color = value.shift == FirstPlayer ? BLACK : WHITE;
+        } else
+        {
+            if (CheckCollisionPointRec(GetMousePosition(), value.rect))
+            {
+                color = currentTurn == FirstPlayer ? DARKGRAY : LIGHTGRAY;
+            }
+        }
+        DrawRectangleV(Vector2(value.rect.x, value.rect.y), Vector2(value.rect.width, value.rect.height), color);
+    }
+
+    Color winColor = { 0, 255, 136, 255 };
+    if (winner == SecondPlayer)
+    {
+        DrawText("WHITE Won! Press R to Restart", 36, 40, 38, winColor);
+    } else if (winner == FirstPlayer)
+    {
+        DrawText("BLACK Won! Press R to Restart", 36, 40, 38, winColor);
+    }
+
+    bool full = isFull(gameWidth);
+    if (full) {
+        DrawText("Press R to Restart", 36, 40, 38, winColor);
+    }
+
+    if (IsKeyPressed(KEY_R))
+    {
+        state = Menu;
+        positions.clear();
+    }
+
+    if (!hasWinner()) {
+        isInside(gameWidth);
+    }
+}
+
 
 bool hasWinner() {
     return winner != None;
