@@ -23,13 +23,13 @@ static const Color PLAYER_GREEN_COLOR     = {34, 197, 94, 255};
 
 static const Color GAME_TEXT          = {226, 232, 240, 255};
 
-static const Color HOVER_RED_COLOR = {244, 63, 94, 120};   
-static const Color HOVER_GREEN_COLOR = {34, 197, 94, 120}; 
+static const Color HOVER_RED_COLOR = {244, 63, 94, 120};
+static const Color HOVER_GREEN_COLOR = {34, 197, 94, 120};
 
 enum Shift
 {
-    RedPlayer, 
-    GreenPlayer, 
+    RedPlayer,
+    GreenPlayer,
     None,
 };
 
@@ -63,11 +63,12 @@ struct MenuButton {
 
 void setup(int gameWidth, int cubeWidth, int cubeHeight, std::pmr::map<VectorI2, PositionData> &positions, Shift &winner);
 bool isInside(int gameWidth, std::pmr::map<VectorI2, PositionData> &positions, Shift &currentTurn, Shift &winner);
-bool checkWin(int gameWidth, Shift currentPlayer, std::pmr::map<VectorI2, PositionData> &positions);
+bool checkWin(VectorI2 clickedPos, int gameWidth, Shift currentPlayer, std::pmr::map<VectorI2, PositionData> &positions);
 bool isFull(int gameWidth, std::pmr::map<VectorI2, PositionData> &positions);
 void game(int gameWidth, int cubeWidth, int cubeHeight, GameState &state, std::pmr::map<VectorI2, PositionData> &positions, Shift &currentTurn, Shift &winner);
 void menu(int &gWidth, GameState &state, int &cubeWidth, int &cubeHeight, std::pmr::map<VectorI2, PositionData> &positions, Shift &winner);
 bool hasWinner(Shift currentTurn);
+int claimedCounter(VectorI2 clickedPos, Shift current, std::pmr::map<VectorI2, PositionData> &positions, int xAdd, int yAdd);
 
 int main()
 {
@@ -157,7 +158,7 @@ void game(const int gameWidth, const int cubeWidth, const int cubeHeight, GameSt
     }
 
     int center = windowWidth/ 2;
-    
+
     if (winner == GreenPlayer)
     {
         DrawText("GREEN Won!", center- center/3, 200, 58, GAME_TEXT);
@@ -190,98 +191,72 @@ bool hasWinner(Shift winner) {
     return winner != None;
 }
 
-bool checkWin(const int gameWidth, const Shift currentPlayer, std::pmr::map<VectorI2, PositionData> &positions)
+bool checkWin(VectorI2 clickedPos, const int gameWidth, const Shift currentPlayer, std::pmr::map<VectorI2, PositionData> &positions)
 {
-    for (int y = 0; y < gameWidth; y++)
+    int xCheck = 1;
+    int yCheck = 1;
+    int zCheck = 1;
+
+    int x = clickedPos.x;
+    int y = clickedPos.y;
+
+    auto clicked = positions[clickedPos];
+    xCheck += claimedCounter(clickedPos, currentPlayer, positions, 1, 0);
+    xCheck += claimedCounter(clickedPos, currentPlayer, positions, -1, 0);
+
+    if (xCheck >= gameWidth)
     {
-        int xLine = 0;
-
-        for (int x = 0; x < gameWidth; x++)
-        {
-            const auto rec = positions[{x, y}];
-            if (!rec.claimed)
-            {
-                continue;
-            }
-            if (rec.shift == currentPlayer)
-            {
-                xLine++;
-            }
-            if (xLine >= gameWidth)
-            {
-                return true;
-            }
-
-        }
-
+        return true;
     }
 
+    yCheck += claimedCounter(clickedPos, currentPlayer, positions, 0, 1);
+    yCheck += claimedCounter(clickedPos, currentPlayer, positions, 0, -1);
 
-    for (int x = 0; x < gameWidth; x++)
+    if (yCheck >= gameWidth)
     {
-        int yLine = 0;
-
-        for (int y = 0; y < gameWidth; y++)
-        {
-            const auto rec = positions[{x, y}];
-            if (!rec.claimed)
-            {
-                continue;
-            }
-            if (rec.shift == currentPlayer)
-            {
-                yLine++;
-            }
-            if (yLine >= gameWidth)
-            {
-                return true;
-            }
-        }
-
+        return true;
     }
 
-    int y = 0;
-    int zLine = 0;
-    for (int x = 0; x < gameWidth; x++)
+    zCheck += claimedCounter(clickedPos, currentPlayer, positions, 1, 1);
+    zCheck += claimedCounter(clickedPos, currentPlayer, positions, -1, -1);
+
+    if (zCheck >= gameWidth)
     {
-
-        const auto rec = positions[{x, y++}];
-        if (!rec.claimed)
-        {
-            continue;
-        }
-        if (rec.shift == currentPlayer)
-        {
-            zLine++;
-        }
-        if (zLine >= gameWidth)
-        {
-            return true;
-        }
-
+        return true;
     }
 
-    int yY = 0;
-    zLine = 0;
-    for (int x = gameWidth-1; x >= 0; x--)
-    {
-        const auto rec = positions[{x, yY++}];
-        if (!rec.claimed)
-        {
-            continue;
-        }
-        if (rec.shift == currentPlayer)
-        {
-            zLine++;
-        }
-        if (zLine >= gameWidth)
-        {
-            return true;
-        }
+    zCheck = 1;
 
+    zCheck += claimedCounter(clickedPos, currentPlayer, positions, -1, 1);
+    zCheck += claimedCounter(clickedPos, currentPlayer, positions, 1, -1);
+
+    if (zCheck >= gameWidth)
+    {
+        return true;
     }
 
     return false;
+}
+
+int claimedCounter(VectorI2 clickedPos, Shift current, std::pmr::map<VectorI2, PositionData> &positions, int xAdd, int yAdd) {
+    int counter = 0;
+
+    int x = clickedPos.x;
+    int y = clickedPos.y;
+    bool continueChecks = true;
+
+    auto clicked = positions[clickedPos];
+    while (continueChecks) {
+        auto pos = positions[{x += xAdd, y += yAdd}];
+
+        if (!pos.claimed || pos.shift != current) {
+            continueChecks = false;
+            break;
+        }
+        counter++;
+    }
+    return counter;
+
 }
 
 bool isFull(const int gameWidth, std::pmr::map<VectorI2, PositionData> &positions) {
@@ -312,7 +287,7 @@ bool isInside(const int gameWidth, std::pmr::map<VectorI2, PositionData> &positi
 
                 value.shift = currentTurn;
                 value.claimed = true;
-                bool won = checkWin(gameWidth, currentTurn, positions);
+                bool won = checkWin(key, gameWidth, currentTurn, positions);
                 if (won)
                 {
                     winner = currentTurn;
