@@ -1,15 +1,35 @@
 #include <map>
-
-
 #include "raylib.h"
 
 constexpr int windowWidth = 800;
 constexpr int windowHeight = 600;
 
+static const Color BACKGROUND_COLOR   = {15, 23, 42, 255};
+
+static const Color TEXT_PRIMARY       = {226, 232, 240, 255};
+
+static const Color BUTTON_BASE        = {30, 41, 59, 255};
+static const Color BUTTON_HOVER       = {51, 65, 85, 255};
+
+static const Color HIGHLIGHT_COLOR    = {34, 211, 238, 255};
+
+static const Color GAME_BACKGROUND    = {2, 6, 23, 255};
+static const Color GRID_COLOR         = {71, 85, 105, 255};
+
+static const Color CELL_BACKGROUND    = {15, 23, 42, 255};
+
+static const Color PLAYER_RED_COLOR     = {244, 63, 94, 255};
+static const Color PLAYER_GREEN_COLOR     = {34, 197, 94, 255};
+
+static const Color GAME_TEXT          = {226, 232, 240, 255};
+
+static const Color HOVER_RED_COLOR = {244, 63, 94, 120};   
+static const Color HOVER_GREEN_COLOR = {34, 197, 94, 120}; 
+
 enum Shift
 {
-    FirstPlayer, //black
-    SecondPlayer, //white
+    RedPlayer, 
+    GreenPlayer, 
     None,
 };
 
@@ -19,6 +39,15 @@ enum GameState
     Playing
 };
 
+struct VectorI2 {
+    int x;
+    int y;
+
+        bool operator<(const VectorI2 &o) const {
+            return x < o.x || (x == o.x && y < o.y);
+        }
+
+};
 
 struct PositionData {
     Rectangle rect;
@@ -32,43 +61,41 @@ struct MenuButton {
     int gameWidth;
 };
 
-// Todo: remove global
-Shift currentTurn = FirstPlayer;
-std::pmr::map<std::pair<int, int>, PositionData> positions;
-Shift winner = None;
-void setup(int gameWidth, int cubeWidth, int cubeHeight);
-bool isInside(int gameWidth);
-bool checkWin(int gameWidth, Shift currentPlayer);
-bool isFull(int gameWidth);
-void game(int gameWidth, int cubeWidth, int cubeHeight, GameState &state);
-void menu(int &gWidth, GameState &state, int &cubeWidth, int &cubeHeight);
-
-bool hasWinner();
+void setup(int gameWidth, int cubeWidth, int cubeHeight, std::pmr::map<VectorI2, PositionData> &positions, Shift &winner);
+bool isInside(int gameWidth, std::pmr::map<VectorI2, PositionData> &positions, Shift &currentTurn, Shift &winner);
+bool checkWin(int gameWidth, Shift currentPlayer, std::pmr::map<VectorI2, PositionData> &positions);
+bool isFull(int gameWidth, std::pmr::map<VectorI2, PositionData> &positions);
+void game(int gameWidth, int cubeWidth, int cubeHeight, GameState &state, std::pmr::map<VectorI2, PositionData> &positions, Shift &currentTurn, Shift &winner);
+void menu(int &gWidth, GameState &state, int &cubeWidth, int &cubeHeight, std::pmr::map<VectorI2, PositionData> &positions, Shift &winner);
+bool hasWinner(Shift currentTurn);
 
 int main()
 {
+    Shift currentTurn = RedPlayer;
+    std::pmr::map<VectorI2, PositionData> positions;
+    Shift winner = None;
+
     GameState state = Menu;
     int gameWidth = 2;
 
     int cubeWidth = windowWidth / gameWidth;
     int cubeHeight = windowHeight / gameWidth;
-    
+
     SetConfigFlags(FLAG_WINDOW_HIGHDPI);
 
     InitWindow(windowWidth, windowHeight, "RikRakRoe");
-    
+
     Image image = LoadImage("tic-tac-toe.png"); //random image from pixabay
     SetWindowIcon(image);
     UnloadImage(image);
-    
+
     while (!WindowShouldClose())
     {
         BeginDrawing();
-        ClearBackground(GRAY);
         if (state == Playing) {
-            game(gameWidth, cubeWidth, cubeHeight, state);
+            game(gameWidth, cubeWidth, cubeHeight, state, positions, currentTurn, winner);
         } else {
-            menu(gameWidth, state, cubeWidth, cubeHeight);
+            menu(gameWidth, state, cubeWidth, cubeHeight, positions, winner);
         }
         EndDrawing();
     }
@@ -77,7 +104,7 @@ int main()
 
 }
 
-void menu(int &gWidth, GameState &state, int &cubeWidth, int &cubeHeight) {
+void menu(int &gWidth, GameState &state, int &cubeWidth, int &cubeHeight, std::pmr::map<VectorI2, PositionData> &positions, Shift &winner) {
     float width = windowWidth / 3;
 
     float centerWidth = (windowWidth / 2) - width / 2;
@@ -86,10 +113,13 @@ void menu(int &gWidth, GameState &state, int &cubeWidth, int &cubeHeight) {
 
     Vector2 mousePosition = GetMousePosition();
 
+    ClearBackground(BACKGROUND_COLOR);
+
+
     for (MenuButton b : buttons) {
         bool inside = CheckCollisionPointRec(mousePosition, b.rect);
-        DrawRectangleV(Vector2(b.rect.x, b.rect.y), Vector2(b.rect.width, b.rect.height), inside ? RED : RAYWHITE);
-        DrawText(b.message, b.rect.x + b.rect.width / 3, b.rect.y + b.rect.height / 3, 40, BLUE);
+        DrawRectangleV(Vector2(b.rect.x, b.rect.y), Vector2(b.rect.width, b.rect.height), inside ? BUTTON_HOVER : BUTTON_BASE);
+        DrawText(b.message, b.rect.x + b.rect.width / 3, b.rect.y + b.rect.height / 3, 40, TEXT_PRIMARY);
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && inside) {
             gWidth = b.gameWidth;
             state = Playing;
@@ -99,40 +129,49 @@ void menu(int &gWidth, GameState &state, int &cubeWidth, int &cubeHeight) {
     if (state == Playing) {
         cubeWidth = windowWidth / gWidth;
         cubeHeight = windowHeight / gWidth;
-        setup(gWidth, cubeWidth, cubeHeight);
+        setup(gWidth, cubeWidth, cubeHeight, positions, winner);
     }
 
 }
 
-void game(const int gameWidth, const int cubeWidth, const int cubeHeight, GameState &state) {
+void game(const int gameWidth, const int cubeWidth, const int cubeHeight, GameState &state, std::pmr::map<VectorI2, PositionData> &positions, Shift &currentTurn, Shift &winner) {
+
+    ClearBackground(GAME_BACKGROUND);
+
+
     for (auto& [key, value] : positions)
     {
-        Color color = GRAY;
+        Color color = CELL_BACKGROUND;
         if (value.claimed)
         {
-            color = value.shift == FirstPlayer ? BLACK : WHITE;
+            color = value.shift == RedPlayer ? PLAYER_RED_COLOR : PLAYER_GREEN_COLOR;
         } else
         {
             if (CheckCollisionPointRec(GetMousePosition(), value.rect))
             {
-                color = currentTurn == FirstPlayer ? DARKGRAY : LIGHTGRAY;
+                color = currentTurn == RedPlayer ? HOVER_RED_COLOR : HOVER_GREEN_COLOR;
             }
         }
         DrawRectangleV(Vector2(value.rect.x, value.rect.y), Vector2(value.rect.width, value.rect.height), color);
+        DrawRectangleLinesEx(value.rect, 2, GRID_COLOR);
     }
 
-    Color winColor = { 0, 255, 136, 255 };
-    if (winner == SecondPlayer)
+    int center = windowWidth/ 2;
+    
+    if (winner == GreenPlayer)
     {
-        DrawText("WHITE Won! Press R to Restart", 36, 40, 38, winColor);
-    } else if (winner == FirstPlayer)
+        DrawText("GREEN Won!", center- center/3, 200, 58, GAME_TEXT);
+        DrawText("Press R to Restart", center- center/2, 280, 48, GAME_TEXT);
+    } else if (winner == RedPlayer)
     {
-        DrawText("BLACK Won! Press R to Restart", 36, 40, 38, winColor);
+        DrawText("RED Won!", center- center/3, 220, 58, GAME_TEXT);
+        DrawText("Press R to Restart", center- center/2, 280, 48, GAME_TEXT);
     }
 
-    bool full = isFull(gameWidth);
+    bool full = isFull(gameWidth, positions);
     if (full) {
-        DrawText("Press R to Restart", 36, 40, 38, winColor);
+        DrawText("GG", center, 220, 58, GAME_TEXT);
+        DrawText("Press R to Restart", center- center/2, 280, 48, GAME_TEXT);
     }
 
     if (IsKeyPressed(KEY_R))
@@ -141,17 +180,17 @@ void game(const int gameWidth, const int cubeWidth, const int cubeHeight, GameSt
         positions.clear();
     }
 
-    if (!hasWinner()) {
-        isInside(gameWidth);
+    if (!hasWinner(winner)) {
+        isInside(gameWidth, positions, currentTurn, winner);
     }
 }
 
 
-bool hasWinner() {
+bool hasWinner(Shift winner) {
     return winner != None;
 }
 
-bool checkWin(const int gameWidth, const Shift currentPlayer)
+bool checkWin(const int gameWidth, const Shift currentPlayer, std::pmr::map<VectorI2, PositionData> &positions)
 {
     for (int y = 0; y < gameWidth; y++)
     {
@@ -245,7 +284,7 @@ bool checkWin(const int gameWidth, const Shift currentPlayer)
     return false;
 }
 
-bool isFull(const int gameWidth) {
+bool isFull(const int gameWidth, std::pmr::map<VectorI2, PositionData> &positions) {
     int claimedCount = 0;
 
     for (auto d : positions) {
@@ -259,7 +298,7 @@ bool isFull(const int gameWidth) {
     return false;
 }
 
-bool isInside(const int gameWidth)
+bool isInside(const int gameWidth, std::pmr::map<VectorI2, PositionData> &positions, Shift &currentTurn, Shift &winner)
 {
 
     Vector2 mousePosition = GetMousePosition();
@@ -273,18 +312,18 @@ bool isInside(const int gameWidth)
 
                 value.shift = currentTurn;
                 value.claimed = true;
-                bool won = checkWin(gameWidth, currentTurn);
+                bool won = checkWin(gameWidth, currentTurn, positions);
                 if (won)
                 {
                     winner = currentTurn;
                 }
-                if (currentTurn == FirstPlayer)
+                if (currentTurn == RedPlayer)
                 {
-                    currentTurn = SecondPlayer;
+                    currentTurn = GreenPlayer;
                 }
                 else
                 {
-                    currentTurn = FirstPlayer;
+                    currentTurn = RedPlayer;
                 }
             }
             return true;
@@ -294,7 +333,7 @@ bool isInside(const int gameWidth)
 
 }
 
-void setup(const int gameWidth, const int cubeWidth, const int cubeHeight)
+void setup(const int gameWidth, const int cubeWidth, const int cubeHeight, std::pmr::map<VectorI2, PositionData> &positions, Shift &winner)
 {
     winner = None;
     int xX = 0;
